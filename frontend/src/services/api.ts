@@ -19,7 +19,7 @@ import type {
   SalesMerchantDetail,
 } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").trim().replace(/\/+$/, "") || "/api";
 const ADMIN_TOKEN_KEY = "cmcb_admin_token";
 
 export interface SessionUser {

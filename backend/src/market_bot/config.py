@@ -1,4 +1,6 @@
 import os
+import hashlib
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -16,6 +18,7 @@ DEFAULT_ADMIN_PASSWORD_HASH = (
 @dataclass
 class Settings:
     telegram_bot_token: str
+    is_vercel: bool = False
     target_chat_id: Optional[int] = None
     target_topic_id: Optional[int] = None
     environment: str = "test"  # "test" or "production"
@@ -44,6 +47,7 @@ class Settings:
     google_sheets_credentials_file: Optional[Path] = None
     @classmethod
     def load(cls) -> "Settings":
+        is_vercel = os.getenv("VERCEL") == "1"
         bot_token = (os.getenv("TELEGRAM_BOT_API") or os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or "").strip()
         env_mode = os.getenv("ENVIRONMENT", "test").strip().lower()
 
@@ -60,7 +64,16 @@ class Settings:
 
         # Keep Google Sheets caches separate from the original Telegram databases.
         custom_db_path = os.getenv("DATABASE_PATH")
-        if custom_db_path:
+        if is_vercel:
+            # A cache is disposable and isolated per process, deployment and tab.
+            identity = ":".join([
+                os.getenv("VERCEL_URL", "local"),
+                os.getenv("GOOGLE_SHEETS_ID", ""),
+                os.getenv("GOOGLE_SHEETS_TAB", "Test3"),
+            ])
+            cache_key = hashlib.sha256(identity.encode()).hexdigest()[:16]
+            db_path = Path(tempfile.gettempdir()) / "cmcb-market-cache" / f"{os.getpid()}-{cache_key}.db"
+        elif custom_db_path:
             db_path = Path(custom_db_path)
         elif source == "google_sheets":
             cache_name = "market_reports_sheets.db" if env_mode == "production" else "market_reports_sheets_test.db"
@@ -107,10 +120,11 @@ class Settings:
 
         return cls(
             telegram_bot_token=bot_token,
+            is_vercel=is_vercel,
             visit_data_source=source,
             google_sheets_id=(os.getenv("GOOGLE_SHEETS_ID") or "1wM7DTHizhg_A3h0qV3EhX4os4hk46uolW-ESQSJkgZs").strip(),
-            google_sheets_tab=(os.getenv("GOOGLE_SHEETS_TAB") or "retail_data").strip(),
-            google_sheets_gid=(os.getenv("GOOGLE_SHEETS_GID") or "1298094173").strip(),
+            google_sheets_tab=(os.getenv("GOOGLE_SHEETS_TAB") or ("Test3" if is_vercel else "retail_data")).strip(),
+            google_sheets_gid=(os.getenv("GOOGLE_SHEETS_GID") or ("1550076852" if is_vercel else "1298094173")).strip(),
             google_sheets_refresh_seconds=refresh_seconds,
             google_sheets_credentials_file=Path(credentials_file).expanduser() if credentials_file else None,
             target_chat_id=chat_id,
@@ -128,7 +142,7 @@ class Settings:
             session_seconds=max(300, min(86400, int(os.getenv("SESSION_SECONDS") or "28800"))),
             admin_username=(os.getenv("ADMIN_USERNAME") or "admin").strip(),
             admin_password_hash=(os.getenv("ADMIN_PASSWORD_HASH") or os.getenv("ADMIN_PASSWORD") or DEFAULT_ADMIN_PASSWORD_HASH).strip(),
-            auth_secret_key=(os.getenv("AUTH_SECRET_KEY") or "cmcb-market-insight-admin-auth-secret-2026").strip(),
+            auth_secret_key=(os.getenv("AUTH_SECRET_KEY") or ("" if is_vercel else "cmcb-market-insight-admin-auth-secret-2026")).strip(),
             mini_app_bot_token=(os.getenv("MINI_APP_BOT_TOKEN") or "").strip() or None,
             mini_app_chat_id=int(os.getenv("MINI_APP_CHAT_ID").strip()) if os.getenv("MINI_APP_CHAT_ID") and os.getenv("MINI_APP_CHAT_ID").strip().lstrip("-").isdigit() else None,
         )

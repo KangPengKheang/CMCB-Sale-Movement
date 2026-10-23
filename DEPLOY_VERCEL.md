@@ -1,100 +1,107 @@
-# Deploy the dashboard on Vercel
+# Deploy both services on Vercel
 
-This repository currently runs a React/Vite frontend and a FastAPI backend. The
-backend continuously syncs Test3 and writes a SQLite cache. Deploy the frontend
-on Vercel and run the existing backend on a persistent server/container.
-Vercel Functions do not provide the shared persistent disk this backend needs.
+The root vercel.json builds two services in one project:
+- frontend: static React/Vite dashboard, public at /.
+- backend: Python 3.12 FastAPI, public at /api and /api/*.
 
-## 1. Start the backend on its host
+The original request path is preserved: FastAPI already defines /api/auth/login,
+ /api/activity/*, and the other /api routes. Backend /docs and /openapi.json
+are not publicly routed by this configuration.
 
-An ignored backend/.env.production has been prepared with the existing Test3
-spreadsheet settings and a newly generated session-signing secret. Import this
-file into the backend host's environment. Do not upload it to the frontend
-project. A tracked backend/.env.production.example documents the same settings
-without a secret.
+## Bindings
 
-Keep a persistent volume mounted at /app/data when using the existing Docker
-image. The database path in this file is for the container; replace it with the
-host's actual persistent-disk path for a non-container deployment.
+No bindings are needed in the current architecture. Vite serves static files;
+browser fetches use the public same-origin /api path. There is no frontend
+server function calling the backend. Runtime binding URLs must not be embedded
+in VITE_ variables or browser bundles. Google Sheets is an external data source,
+not another Vercel service. Add a caller-side binding if server-side calls are
+introduced later.
 
-Use the existing image/Dockerfile to run one backend process. Provide its public
-HTTPS address through your host's reverse proxy. Its internal port is 8000.
+## Deployment steps
 
-To build/run the existing Docker Compose service with the production variables:
+1. Set the Vercel project Root Directory to the repository root (./).
+2. Select the Services preset. Remove project-wide frontend install/build/output
+   overrides; these are now specified on the frontend service.
+3. Import the prepared, ignored root .env.vercel file into Vercel. It contains
+   the Test3 / Users configuration and a private signing secret. Only the public
+   VITE_API_BASE_URL=/api value belongs in frontend code. Keep the signing secret
+   stable across instances and deployments; changing it signs out active users.
+   Do not import backend/.env.production for this setup: that file describes a
+   persistent Docker host. frontend/.env.vercel now only documents /api.
+4. Remove any old VITE_API_BASE_URL pointing to Render or a placeholder. The
+   Vercel frontend build also enforces /api to prevent stale cross-deployment URLs.
+5. Deploy from the repository root after confirming the proposed names, public
+   paths, and absence of internal bindings.
+6. Check /api/health, sign in using a Users account, and verify the map,
+   RM activity, channel permissions, unread filter, and Drop Calendar.
 
-    docker compose --env-file backend/.env.production up -d --build
+A tracked .env.example lists the shared settings without a secret. Never commit
+the private .env.vercel. The existing Render deployment is independent and is not
+changed by these files.
 
-The existing Compose file mounts ./backend/data at /app/data. Its container API
-is exposed on port 8000; HTTPS/domain configuration belongs to the backend host.
-The bundled dashboard may also be served by that container, but Vercel will host
-the public dashboard for this setup.
+## Function storage and refresh behavior
 
-Verify the public API before configuring Vercel:
+Vercel mode is detected with VERCEL=1, including local vercel dev. A process-local
+SQLite file under the runtime temporary directory is a disposable read cache,
+never the source of truth. DATABASE_PATH is ignored in this mode so a stale
+Docker /app/data or Windows path cannot break startup. Test3 is fetched on the
+first authenticated data request. Further requests refresh it at most once per
+15 seconds per instance. The dashboard continues polling every 15 seconds.
+There is no guaranteed background refresh while nobody is using the dashboard.
 
-    https://YOUR-BACKEND-DOMAIN/api/health
+Concurrent cold requests share one refresh. A failed cold fetch returns 503;
+a warm instance can continue serving its last complete snapshot. A fresh
+function instance rebuilds independently from the Sheet. No SQLite database
+or customer records are packaged in the deployment.
 
-The response should show status=online, visit_data_source=google_sheets, and
-database=market_reports_sheets_test3.db. The Users tab remains the login source.
+Transaction file uploads are rejected on Vercel because they require durable
+storage; accepting them into temporary storage would lose them on recycling.
+Existing persistent Docker/Render deployments keep their upload behavior.
+Telegram polling also requires the existing persistent deployment; Vercel mode
+supports the Google Sheets monitoring source. Users-directory caches, login
+throttling, and token revocation remain process-local, not distributed across
+function instances. A shared durable store is needed before relying on global
+rate limits, global immediate revocation, or transaction uploads on Vercel.
 
-If the spreadsheet becomes private, mount the service-account JSON read-only,
-grant its account Viewer access to the workbook, and set
-GOOGLE_SHEETS_CREDENTIALS_FILE to its mounted path. This credential stays on the
-backend host.
+The backend build command packages the shared boundary JSON from frontend source
+into backend/boundaries. All other static frontend assets stay in the Vite
+service. The backend does not mount the frontend in Vercel mode.
 
-## 2. Configure the Vercel project
+## Local verification
 
-Import the repository and use:
+Install Python 3.12 and ensure it is selected by your shell before starting
+vercel dev; the current Vercel Python runtime package requires Python >=3.12.
+The backend/.python-version file pins the hosted runtime to 3.12.
 
-| Setting | Value |
-| --- | --- |
-| Root Directory | frontend |
-| Framework Preset | Vite |
-| Install Command | npm ci |
-| Build Command | npm run build |
-| Output Directory | dist |
+From the repository root, use the current Vercel CLI:
 
-frontend/vercel.json supplies the build settings and SPA fallback. The Root
-Directory still needs to be selected in Vercel's project settings.
+    npx vercel@latest dev --local
 
-Add this environment variable to the Vercel project:
+For a linked project use:
 
-    VITE_API_BASE_URL=https://YOUR-BACKEND-DOMAIN/api
+    npx vercel@latest dev
 
-Use the actual public HTTPS backend hostname, include /api, and omit the trailing
-slash. The exact value is the only missing deployment input because the backend
-has not been deployed yet. frontend/.env.example is a copyable template.
-
-Set the variable for Production and for Preview if preview deployments should
-use that backend. The browser sends API requests directly to this URL using the
-existing bearer-token login. The backend already permits cross-origin requests;
-its CORS settings can be narrowed once the final frontend hostname is known.
-
-Vite embeds this public API URL at build time. Create a new Vercel deployment
-after setting or changing it. The Vite localhost proxy works only in development;
-Vercel will not use the localhost:8000 proxy configuration.
-
-Only VITE_API_BASE_URL belongs in the Vercel frontend environment for this app.
-AUTH_SECRET_KEY, Sheet credentials, database paths, and Telegram tokens stay on
-the backend. VITE_ variables are public in the built JavaScript.
-
-## 3. Verify the deployed dashboard
-
-- Open the Vercel deployment URL and sign in using the existing Users account.
-- Confirm Sales Activity and Drop Calendar show Test3 data.
-- Confirm the browser's /auth/login request goes to the public backend /api URL.
-- Make a Sheet edit and allow roughly 30 seconds plus loading time: backend sync
-  runs every 15 seconds and the dashboard polls every 15 seconds.
-- Open a nested frontend URL directly to check the SPA fallback.
-
-For local development, leave frontend/.env unset so the existing /api localhost
-proxy continues to work. The root .env remains your existing local setup.
-The backend does not automatically load a file named .env.production; import it
-into the host's environment or pass it to Docker as shown above.
+The CLI runs the services and top-level routing together. Set the shared
+environment variables listed in .env.example (or import them into the linked
+project); do not set generated binding variables yourself. Plain Python/Vite
+local development and the existing Docker/Render workflow remain supported.
 
 ## References
 
-- [Vercel Vite deployment](https://vercel.com/docs/frameworks/frontend/vite)
-- [Vercel build and Root Directory settings](https://vercel.com/docs/builds/configure-a-build)
-- [Vercel environment variables](https://vercel.com/docs/environment-variables)
-- [SQLite and Vercel Functions](https://vercel.com/kb/guide/is-sqlite-supported-in-vercel)
-- [Vite 5 environment variables](https://v5.vite.dev/guide/env-and-mode)
+- https://vercel.com/docs/services
+- https://vercel.com/docs/services/bindings
+- https://vercel.com/docs/frameworks/backend/fastapi
+- https://vercel.com/docs/functions/runtimes
+
+## Verification in this workspace
+
+- Frontend TypeScript/Vite production build passed with VERCEL=1 and an
+  intentionally obsolete API URL. No obsolete hostname appears in its bundles.
+- 73 affected backend tests passed, including function cold starts, concurrent
+  refreshes, failed Sheet reads, channel access, and login behavior.
+- Root configuration passed the published Vercel JSON schema.
+- Vercel CLI 65.2.0 detects both services. Full local startup is unverified:
+  this workstation only has Python 3.11, while vercel-runtime requires >=3.12.
+- The broader backend suite has six sales-test failures and one setup error:
+  old tests expect anonymous access and depend on local data. The same failures
+  were reproduced against the unchanged deployed-code worktree.

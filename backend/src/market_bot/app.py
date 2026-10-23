@@ -3,7 +3,8 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from .api import routes_activity, routes_auth, routes_map, routes_merchants, routes_reports, routes_rms, routes_sales, routes_transactions
 from .core.auth import require_admin, require_all_sources, require_operations_admin
@@ -12,6 +13,8 @@ from .clients.telegram import AsyncTelegramClient
 from .config import Settings
 from .core.engine import process_update
 from .core.sheets_sync import GoogleSheetsSync
+from .core.request_cache import RequestSheetCache
+from .clients.google_sheets import GoogleSheetsError
 from .db.storage import get_connection, init_db, sweep_expired_events
 
 logging.basicConfig(
@@ -124,6 +127,12 @@ async def lifespan(app: FastAPI):
     global is_running, polling_task
     settings = Settings.load()
     logger.info(f"Starting Market Improvement Bot Backend ({settings.environment.upper()} mode)")
+    if settings.is_vercel:
+        # Functions can be frozen after the response. Refresh only within an
+        # authenticated request, and initialize lazily even without ASGI lifespan.
+        yield
+        return
+
 
     # 1. Initialize SQLite storage
     init_db(settings.db_path)
@@ -177,7 +186,12 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """FastAPI Application Factory."""
     settings = Settings.load()
+    def require_runtime_configuration():
+        if settings.is_vercel and not settings.auth_secret_key:
+            raise HTTPException(status_code=503, detail="Set AUTH_SECRET_KEY in the Vercel project environment.")
+
     app = FastAPI(
+        dependencies=[Depends(require_runtime_configuration)],
         title="CMCB Market Improvement Bot API",
         description="Backend service for Google Sheets visit synchronization, optional Telegram ingestion, and KHQR map analytics.",
         version="1.0.0",
@@ -186,6 +200,21 @@ def create_app() -> FastAPI:
 
     if settings.auth_source == "users":
         app.state.users_directory = UsersDirectory(settings)
+
+    if settings.is_vercel:
+        if settings.visit_data_source != "google_sheets":
+            raise ValueError("Vercel mode requires VISIT_DATA_SOURCE=google_sheets.")
+        app.state.request_sheet_cache = RequestSheetCache(settings)
+
+    async def prepare_data(request: Request, principal: dict = Depends(require_admin)):
+        if settings.is_vercel:
+            try:
+                await run_in_threadpool(app.state.request_sheet_cache.ensure)
+            except GoogleSheetsError as error:
+                raise HTTPException(status_code=503, detail=str(error), headers={"Retry-After": "15"})
+            request.app.state.sheets_sync = app.state.request_sheet_cache.sync
+        return principal
+
 
     # Enable CORS for React Frontend (khqr-map)
     app.add_middleware(
@@ -197,13 +226,13 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(routes_auth.router)
-    app.include_router(routes_activity.router, dependencies=[Depends(require_admin)])
-    app.include_router(routes_reports.router, dependencies=[Depends(require_admin)])
-    app.include_router(routes_merchants.router, dependencies=[Depends(require_admin)])
-    app.include_router(routes_rms.router, dependencies=[Depends(require_admin)])
-    app.include_router(routes_map.router, dependencies=[Depends(require_admin)])
-    app.include_router(routes_transactions.router, dependencies=[Depends(require_all_sources)])
-    app.include_router(routes_sales.router, dependencies=[Depends(require_admin)] if settings.auth_source == "users" else [])
+    app.include_router(routes_activity.router, dependencies=[Depends(prepare_data)])
+    app.include_router(routes_reports.router, dependencies=[Depends(prepare_data)])
+    app.include_router(routes_merchants.router, dependencies=[Depends(prepare_data)])
+    app.include_router(routes_rms.router, dependencies=[Depends(prepare_data)])
+    app.include_router(routes_map.router, dependencies=[Depends(prepare_data)])
+    app.include_router(routes_transactions.router, dependencies=[Depends(require_all_sources), Depends(prepare_data)])
+    app.include_router(routes_sales.router, dependencies=[Depends(prepare_data)] if settings.auth_source == "users" or settings.is_vercel else [])
     @app.get("/api/health", tags=["Health"])
     def health_check():
         return {
@@ -215,7 +244,7 @@ def create_app() -> FastAPI:
             "correlation_window_seconds": settings.correlation_window_seconds,
         }
 
-    @app.get("/api/source/status", tags=["Data Source"], dependencies=[Depends(require_admin)])
+    @app.get("/api/source/status", tags=["Data Source"], dependencies=[Depends(prepare_data)])
     def data_source_status(request: Request):
         sync = getattr(app.state, "sheets_sync", None)
         if sync is not None:
@@ -223,7 +252,7 @@ def create_app() -> FastAPI:
         return {"source": settings.visit_data_source, "state": "not_running"}
 
     # Serve the React frontend (frontend/dist) as static files when present (MUST be mounted last)
-    if settings.frontend_dist_path.exists():
+    if not settings.is_vercel and settings.frontend_dist_path.exists():
         from fastapi.staticfiles import StaticFiles
 
         app.mount(

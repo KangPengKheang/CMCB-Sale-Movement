@@ -201,7 +201,15 @@ def expand_polygon(hull: List[List[float]], buffer_meters: float = 28.0) -> List
     return padded
 
 
-@router.post("/upload", dependencies=[Depends(require_operations_admin)])
+def require_persistent_upload_storage():
+    if Settings.load().is_vercel:
+        raise HTTPException(
+            status_code=503,
+            detail="Transaction uploads require persistent storage and are unavailable on this Vercel deployment.",
+        )
+
+
+@router.post("/upload", dependencies=[Depends(require_operations_admin), Depends(require_persistent_upload_storage)])
 async def upload_weekly_transaction_file(
     file: UploadFile = File(...),
     conn=Depends(get_db)
