@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "market-bot"
+version = "1.0.0"
+description = "FastAPI backend & automated Telegram Bot for CMCB market improvement tracking"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+    "telethon>=1.34.0",
+    "openpyxl>=3.1.2",
+    "python-multipart>=0.0.9",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "scikit-learn>=1.4.0",
+    "google-auth[requests]>=2.29.0"
+]
+
+[project.scripts]
+market-bot = "run:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,52 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key
+*.cert
+service_account*.json
+
+# SQLite Databases & Backups
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/backups/
+data/captured_updates.jsonl
+*.sqlite3
+*.db
+*.session
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Logs & Operating System
+*.log
+.DS_Store
+.vscode/
+.idea/

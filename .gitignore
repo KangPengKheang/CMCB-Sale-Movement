@@ -1,0 +1,43 @@
+# Secrets & Environment
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.session
+service_account*.json
+
+# Databases & Logs
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+*.log
+data/backups/
+data/captured_updates.jsonl
+
+# Python & Node
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+dist/
+*.tsbuildinfo
+
+# OS
+.DS_Store
+
+# Reference / Legacy directories (not shipped)
+khqr-map/
+market-insights-hub/
+War-Map/
+
+# Local Scratch & Notebooks
+*.xlsx
+*.ipynb
+data/
+backend/data/*.db*
+backend/data/captured_updates.jsonl
+backend/data/backups/
+
+# Local Vercel project metadata
+.vercel/

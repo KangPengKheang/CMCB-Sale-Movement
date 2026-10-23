@@ -1,0 +1,213 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans bg-slate-50 text-slate-900;
+  }
+}
+
+/* Custom Leaflet Map Styling */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #f1f5f9 !important;
+}
+/* Google Maps Clean Color Styling */
+.flatwhite-basemap .leaflet-tile-pane {
+  filter: none !important;
+}
+
+.flatwhite-basemap .leaflet-tile {
+  filter: none !important;
+}
+/* Prevent browser focus outlines and blue bounding boxes on SVG map layers */
+.leaflet-container path,
+.leaflet-container svg,
+.leaflet-interactive,
+.leaflet-pane svg {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.leaflet-container path:focus,
+.leaflet-container path:focus-visible,
+.leaflet-container svg:focus,
+.leaflet-container svg:focus-visible,
+.leaflet-interactive:focus,
+.leaflet-interactive:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Custom Leaflet Popup Styling */
+.leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid #e2e8f0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.5;
+}
+
+.leaflet-popup-tip {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: none !important;
+}
+
+/* Solid white attribution control (Leaflet defaults to a translucent white) */
+.leaflet-container .leaflet-control-attribution {
+  background: #ffffff !important;
+  color: #64748b !important;
+  border-top-left-radius: 6px;
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: #475569 !important;
+}
+
+/* Route Trail Animation */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.route-polyline {
+  animation: dash 1.5s linear infinite;
+}
+
+/* Clean Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Sales movement: routes sit behind dark GPS points. */
+.sales-stop {
+  position: relative;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: var(--stop-color);
+  color: white;
+  box-shadow: 0 0 0 5px var(--stop-halo), 0 3px 8px #0f172a50;
+  font: 800 11px ui-monospace, monospace;
+}
+.sales-stop > span { position: relative; z-index: 1; }
+.sales-stop-latest { border-radius: 10px; }
+.sales-stop-latest::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 2px solid var(--stop-color);
+  border-radius: 15px;
+  opacity: .35;
+  animation: sales-stop-pulse 2.8s ease-out infinite;
+  pointer-events: none;
+}
+.sales-route-dot { filter: drop-shadow(0 2px 2px #0f172a45); }
+.sales-trail-selected { animation: sales-trail-flow 2.8s linear infinite; }
+.sales-stop-label.leaflet-tooltip {
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: white;
+  padding: 4px 7px;
+  color: #334155;
+  font: 700 9px ui-monospace, monospace;
+  box-shadow: 0 2px 8px #0f172a14;
+}
+@keyframes sales-trail-flow { to { stroke-dashoffset: -36; } }
+@keyframes sales-stop-pulse {
+  0% { transform: scale(.8); opacity: .4; }
+  90%, 100% { transform: scale(1.4); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sales-trail-selected, .sales-stop-latest::before { animation: none; }
+}
+
+.sales-movement-view .leaflet-tile-pane { filter: saturate(.7); }
+
+
+@keyframes sales-rm-arrival {
+  0%, 100% { box-shadow: 0 0 0 1px #99f6e4; }
+  50% { box-shadow: 0 0 0 3px #ccfbf1; }
+}
+.sales-rm-new { animation: sales-rm-arrival 1.4s ease-out 2; }
+@media (prefers-reduced-motion: reduce) {
+  .sales-rm-new { animation: none; }
+}
+
+/* Detailed, responsive visit cards inside Leaflet map popups. */
+.drop-detail-popup .leaflet-popup-content-wrapper {
+  overflow: hidden;
+  border-radius: 15px !important;
+  padding: 0;
+  box-shadow: 0 16px 48px #0f172a38, 0 0 0 1px #e2e8f0 !important;
+}
+.drop-detail-popup .leaflet-popup-content {
+  width: min(270px, calc(100vw - 104px), var(--drop-popup-width, 270px)) !important;
+  margin: 0 !important;
+  font-family: inherit;
+}
+.drop-detail-popup .leaflet-popup-tip { background: #f8fafc; }
+.leaflet-container .drop-detail-popup a.leaflet-popup-close-button {
+  top: 7px;
+  right: 7px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #ffffff18;
+  color: #e2e8f0;
+  font-size: 19px;
+}
+.leaflet-container .drop-detail-popup a.leaflet-popup-close-button:hover {
+  background: #ffffff30;
+  color: white;
+}
+.drop-details-card {
+  max-height: min(380px, calc(100dvh - 160px), var(--drop-popup-max-height, 380px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: #0f172a;
+}
+.drop-details-card dl, .drop-details-card dd { margin: 0; }
+.drop-details-card h4, .drop-details-card p { margin: 0; }
+.drop-details-card a.drop-contact-link { color: #0f766e; text-decoration: none; }
+.drop-details-card a.drop-contact-link:hover { text-decoration: underline; }
+.drop-details-card :focus-visible { outline: 2px solid #14b8a6; outline-offset: 3px; }
+
+/* Keep the calendar's horizontal scrollbar easy to find and drag. */
+.drop-calendar-scroll { scrollbar-width: auto; scrollbar-color: #a78bfa #f5f3ff; }
+.drop-calendar-scroll::-webkit-scrollbar { width: 10px; height: 12px; }
+.drop-calendar-scroll::-webkit-scrollbar-track { background: #f5f3ff; }
+.drop-calendar-scroll::-webkit-scrollbar-thumb { background: #a78bfa; border: 2px solid #f5f3ff; border-radius: 999px; }
+.drop-calendar-scroll::-webkit-scrollbar-thumb:hover { background: #7c3aed; }

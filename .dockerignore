@@ -1,0 +1,29 @@
+# Node.js & Frontend Artifacts
+**/node_modules/
+frontend/dist/
+khqr-map/
+market-insights-hub/
+
+# Python & Virtual Environments
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+**/venv/
+**/.pytest_cache/
+
+# Databases, Logs & Secrets (Must be mounted via external volume)
+backend/data/*.db*
+backend/data/captured_updates.jsonl
+backend/data/backups/
+**/.env
+**/.env.*
+!**/.env.example
+
+# Git, IDE & System
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+*.swp

@@ -1,0 +1,44 @@
+services:
+  cmcb-market-insights:
+    image: 172.31.23.44:4443/web/cmcb-market-insights:main-6b4b56f
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistent host mount for SQLite DB, raw transaction files, and backups
+      - ./backend/data:/app/data
+    environment:
+      - ENVIRONMENT=production
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8000
+      - VISIT_DATA_SOURCE=${VISIT_DATA_SOURCE:-google_sheets}
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/market_reports_sheets.db}
+      - GOOGLE_SHEETS_ID=${GOOGLE_SHEETS_ID:-1wM7DTHizhg_A3h0qV3EhX4os4hk46uolW-ESQSJkgZs}
+      - GOOGLE_SHEETS_TAB=${GOOGLE_SHEETS_TAB:-retail_data}
+      - GOOGLE_SHEETS_GID=${GOOGLE_SHEETS_GID:-1298094173}
+      - GOOGLE_SHEETS_REFRESH_SECONDS=${GOOGLE_SHEETS_REFRESH_SECONDS:-15}
+      - GOOGLE_SHEETS_CREDENTIALS_FILE=${GOOGLE_SHEETS_CREDENTIALS_FILE:-}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - AUTH_SECRET_KEY=${AUTH_SECRET_KEY:-}
+      - MINI_APP_BOT_TOKEN=${MINI_APP_BOT_TOKEN:-}
+      - MINI_APP_CHAT_ID=${MINI_APP_CHAT_ID:-}
+      # Optional: Telegram bot notifications (if needed)
+      # - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      # - TARGET_CHAT_ID=${TARGET_CHAT_ID:-}
+      # - TARGET_TOPIC_ID=${TARGET_TOPIC_ID:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
