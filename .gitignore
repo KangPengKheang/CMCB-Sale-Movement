@@ -39,5 +39,12 @@ backend/data/*.db*
 backend/data/captured_updates.jsonl
 backend/data/backups/
 
+# Required static map asset: include it in fresh checkouts and deployments.
+!frontend/src/data/
+frontend/src/data/*
+!frontend/src/data/boundaries/
+frontend/src/data/boundaries/*
+!frontend/src/data/boundaries/phnom_penh_khans.json
+
 # Local Vercel project metadata
 .vercel/
